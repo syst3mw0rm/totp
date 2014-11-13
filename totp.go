@@ -15,13 +15,13 @@ import (
 	"time"
 )
 
-// QRCodeData returns the data to be contained in a QR Code.
+// qrCodeData returns the data to be contained in a QR Code.
 // label is the string that GA uses in the UI. secretkey should be this user's
 // secret key. issuer is used to resolve conflicts.
 // Reference - https://code.google.com/p/google-authenticator/wiki/ConflictingAccounts
 // opt should be the configured Options for this TOTP. If a nil
 // options is passed, then DefaultOptions is used.
-func QRCodeData(label string, secretKey []byte, issuer string, opt *Options) string {
+func qrCodeData(label string, secretKey []byte, issuer string, opt *Options) string {
 	if opt == nil {
 		opt = DefaultOptions
 	}
@@ -40,7 +40,7 @@ func QRCodeData(label string, secretKey []byte, issuer string, opt *Options) str
 
 // Return a URL to generate QRCode on Google Charts for use with authenticator apps.
 func QRCodeGoogleChartsUrl(label string, secretKey []byte, issuer string, opt *Options, width int) string {
-	data := url.QueryEscape(QRCodeData(label, secretKey, issuer, opt))
+	data := url.QueryEscape(qrCodeData(label, secretKey, issuer, opt))
 	return fmt.Sprintf("https://chart.googleapis.com/chart?cht=qr&chs=%vx%v&chl=%v", width, width, data)
 }
 
