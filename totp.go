@@ -4,7 +4,6 @@
 package totp
 
 import (
-	"code.google.com/p/rsc/qr"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base32"
@@ -12,39 +11,37 @@ import (
 	"hash"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
-// BarcodeImage creates a QR code for use with Google Authenticator (GA).
+// QRCodeData returns the data to be contained in a QR Code.
 // label is the string that GA uses in the UI. secretkey should be this user's
-// secret key. opt should be the configured Options for this TOTP. If a nil
+// secret key. issuer is used to resolve conflicts.
+// Reference - https://code.google.com/p/google-authenticator/wiki/ConflictingAccounts
+// opt should be the configured Options for this TOTP. If a nil
 // options is passed, then DefaultOptions is used.
-func BarcodeImage(label string, secretkey []byte, opt *Options) ([]byte, error) {
+func QRCodeData(label string, secretKey []byte, issuer string, opt *Options) string {
 	if opt == nil {
 		opt = DefaultOptions
 	}
 
-	u := &url.URL{
-		Scheme: "otpauth",
-		Host:   "totp",
-		Path:   fmt.Sprintf("/%s", label),
-	}
+	// We need to URL Escape the label, but at the same time, spaces come through
+	// as +'s, so we need to reverse that encoding...
+	label = url.QueryEscape(label)
+	label = strings.Replace(label, "+", " ", -1)
 
-	params := url.Values{
-		"secret": {base32.StdEncoding.EncodeToString(secretkey)},
-		"digits": {strconv.Itoa(int(opt.Digits))},
-		"period": {strconv.Itoa(int(opt.TimeStep / time.Second))},
-	}
+	secret := base32.StdEncoding.EncodeToString(secretKey)
+	digits := strconv.Itoa(int(opt.Digits))
+	period := strconv.Itoa(int(opt.TimeStep / time.Second))
 
-	u.RawQuery = params.Encode()
+	return fmt.Sprintf("otpauth://totp/%v?secret=%v&issuer=%v&Digits=%v&Period=%v", label, secret, issuer, digits, period)
+}
 
-	c, err := qr.Encode(u.String(), qr.M)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return c.PNG(), nil
+// Return a URL to generate QRCode on Google Charts for use with authenticator apps.
+func QRCodeGoogleChartsUrl(label string, secretKey []byte, issuer string, opt *Options, width int) string {
+	data := url.QueryEscape(QRCodeData(label, secretKey, issuer, opt))
+	return fmt.Sprintf("https://chart.googleapis.com/chart?cht=qr&chs=%vx%v&chl=%v", width, width, data)
 }
 
 // Options contains the different configurable values for a given TOTP
@@ -57,22 +54,18 @@ type Options struct {
 	Hash     func() hash.Hash
 }
 
-// NewOptions constructs a pre-configured Options. The returned Options' uses
-// time.Now to get the current time, has a window size of 30 seconds, and
-// tries the currently active window, and the previous one. It expects 6 digits,
-// and uses sha1 for its hash algorithm. These settings were chosen to be
-// compatible with Google Authenticator.
-func NewOptions() *Options {
-	return &Options{
-		Time:     time.Now,
-		Tries:    []int64{0, -1},
-		TimeStep: 30 * time.Second,
-		Digits:   6,
-		Hash:     sha1.New,
-	}
+// DefaultOptions is pre-configured Options. It uses time.Now to get the
+// current time, has a window size of 30 seconds, and tries the currently
+// active window, and the previous one. It expects 6 digits, and uses sha1
+// for its hash algorithm. These settings were chosen to be compatible with
+// Google Authenticator.
+var DefaultOptions = &Options{
+	Time:     time.Now,
+	Tries:    []int64{0, -1},
+	TimeStep: 30 * time.Second,
+	Digits:   6,
+	Hash:     sha1.New,
 }
-
-var DefaultOptions = NewOptions()
 
 var digit_power = []int64{
 	1,          // 0
